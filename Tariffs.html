@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tariff Management | Sri Lanka Utility Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .sidebar-item-active { background-color: #3b82f6; color: white !important; border-radius: 0.5rem; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen antialiased">
+
+    <div id="app" class="flex h-screen overflow-hidden">
+        <aside class="w-64 bg-gray-800 text-gray-400 p-4 flex flex-col h-screen sticky top-0 z-20">
+            <div class="logo flex items-center mb-10 mt-2">
+                <i class="fa-solid fa-leaf text-2xl text-green-400 mr-2"></i>
+                <span class="text-xl font-semibold text-white">CoreUtility</span>
+            </div>
+            <nav class="flex-1">
+                <ul class="space-y-2">
+                    <li><a href="index.html" class="flex items-center space-x-3 p-2 text-sm font-medium hover:bg-gray-700 hover:text-white rounded-lg transition"><i class="fa-solid fa-house w-5"></i> <span>Dashboard</span></a></li>
+                    <li><a href="customers.html" class="flex items-center space-x-3 p-2 text-sm font-medium hover:bg-gray-700 hover:text-white rounded-lg transition"><i class="fa-solid fa-user w-5"></i> <span>Customers</span></a></li>
+                    <li class="sidebar-item-active"><a href="tariffs.html" class="flex items-center space-x-3 p-2 text-sm font-medium text-white"><i class="fa-solid fa-wallet w-5"></i> <span>Tariffs</span></a></li>
+                    <li><a href="reports.html" class="flex items-center space-x-3 p-2 text-sm font-medium hover:bg-gray-700 hover:text-white rounded-lg transition"><i class="fa-solid fa-chart-line w-5"></i> <span>Reports</span></a></li>
+                    <li><a href="admin.html" class="flex items-center space-x-3 p-2 text-sm font-medium hover:bg-gray-700 hover:text-white rounded-lg transition"><i class="fa-solid fa-gear w-5"></i> <span>Administration</span></a></li>
+                </ul>
+            </nav>
+        </aside>
+        
+        <main class="flex-1 overflow-y-auto p-6 lg:p-10">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-gray-800">Tariff Management</h1>
+                <p class="text-sm text-gray-500 mt-1">Configure slab rates and calculate billing estimates.</p>
+            </header>
+
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+                <div class="xl:col-span-7 space-y-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
+                        <h3 class="text-lg font-bold text-gray-800 mb-6">Utility Configuration</h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <label class="text-xs font-bold text-gray-400 uppercase">Select Utility</label>
+                                <select id="utility" class="w-full mt-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none">
+                                    <option value="electricity">Electricity</option>
+                                    <option value="water">Water</option>
+                                    <option value="gas">Gas</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-gray-400 uppercase">Tariff Preset</label>
+                                <select id="preset" class="w-full mt-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none"></select>
+                            </div>
+                        </div>
+
+                        <div id="tariffSummary" class="p-4 bg-blue-50 rounded-xl border border-blue-100 mb-6"></div>
+
+                        <div class="border-t border-gray-100 pt-6">
+                            <label class="text-xs font-bold text-gray-400 uppercase">Units Consumed</label>
+                            <div class="flex gap-4 mt-2">
+                                <input type="number" id="units" min="0" value="100" class="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-lg font-bold outline-none">
+                                <button onclick="calculate()" class="px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition shadow-lg shadow-blue-200">Calculate Bill</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="xl:col-span-5">
+                    <div id="resultBox" class="bg-white rounded-2xl shadow-lg border border-gray-200 h-full overflow-hidden" style="display:none;">
+                        <div class="p-6 bg-gray-800 text-white text-center">
+                            <p class="text-xs uppercase font-bold text-gray-400">Estimated Total</p>
+                            <h2 id="totalText" class="text-4xl font-extrabold mt-1">Rs. 0.00</h2>
+                        </div>
+                        <div id="breakdown" class="p-6 custom-scroll overflow-y-auto max-h-[500px]"></div>
+                        <div class="p-4 bg-gray-50 text-center">
+                            <button onclick="resetForm()" class="text-xs text-gray-500 hover:text-blue-600 font-bold">RESET CALCULATOR</button>
+                        </div>
+                    </div>
+                    <div id="placeholder" class="bg-white rounded-2xl border-2 border-dashed border-gray-200 h-64 flex flex-col items-center justify-center text-gray-400">
+                        <i class="fa-solid fa-calculator text-4xl mb-2"></i>
+                        <p class="text-sm">Enter units and click calculate to see breakdown</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+    const presets = {
+        electricity: { name: "Electricity", options: { "Residential": [{limit:60, rate:20}, {limit:30, rate:25}, {limit:null, rate:35}] } },
+        water: { name: "Water", options: { "Household": [{limit:30, rate:15}, {limit:null, rate:30}] } },
+        gas: { name: "Gas", options: { "Domestic": [{limit:50, rate:18}, {limit:null, rate:32}] } }
+    };
+
+    let currentSlabs = [];
+    const utilityEl = document.getElementById('utility');
+    const presetEl = document.getElementById('preset');
+    const summaryEl = document.getElementById('tariffSummary');
+
+    function populatePresets() {
+        const util = utilityEl.value;
+        presetEl.innerHTML = '';
+        const opts = presets[util].options;
+        for (const name in opts) {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            presetEl.appendChild(option);
+        }
+        presetChanged();
+    }
+
+    function presetChanged() {
+        const util = utilityEl.value;
+        const choice = presetEl.value;
+        currentSlabs = presets[util].options[choice];
+        summaryEl.innerHTML = `<p class="text-xs font-bold text-blue-600 uppercase">${presets[util].name} — ${choice}</p>`;
+    }
+
+    function calculate() {
+        const units = Number(document.getElementById('units').value);
+        let remaining = units;
+        let total = 0;
+        let breakdownHtml = `<table class="w-full text-sm"><tbody class="divide-y divide-gray-50">`;
+
+        for (let i = 0; i < currentSlabs.length && remaining > 0; i++) {
+            const slab = currentSlabs[i];
+            let amtUnits = (slab.limit === null) ? remaining : Math.min(remaining, slab.limit);
+            let amount = amtUnits * slab.rate;
+            total += amount;
+            breakdownHtml += `<tr><td class="py-4 font-medium text-gray-700">Slab ${i+1} @ Rs. ${slab.rate}</td><td class="py-4 text-center">${amtUnits}</td><td class="py-4 text-right font-bold">Rs. ${amount.toFixed(2)}</td></tr>`;
+            remaining -= amtUnits;
+        }
+        breakdownHtml += '</tbody></table>';
+
+        document.getElementById('placeholder').style.display = 'none';
+        document.getElementById('resultBox').style.display = 'block';
+        document.getElementById('totalText').textContent = `Rs. ${total.toFixed(2)}`;
+        document.getElementById('breakdown').innerHTML = breakdownHtml;
+    }
+
+    function resetForm() {
+        document.getElementById('resultBox').style.display = 'none';
+        document.getElementById('placeholder').style.display = 'flex';
+    }
+
+    utilityEl.addEventListener('change', populatePresets);
+    presetEl.addEventListener('change', presetChanged);
+    populatePresets();
+    </script>
+</body>
+</html>
