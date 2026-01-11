@@ -1,7 +1,7 @@
 <?php
 session_start();
 require 'includes/db.php';
-require 'includes/functions.php'; // Ensure formatLKR() is available
+require 'includes/functions.php'; 
 
 $calculation_result = "";
 $total_bill = 0;
@@ -15,17 +15,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $energy_charge = 0;
     $rate_info = "";
 
-    // 1. ELECTRICITY LOGIC (Complex Slab System)
+    )
     if ($utility_type == 'Electricity') {
         
         if ($customer_type == 'Residential') {
-            // Residential Slab: 0-60 units is cheap, >60 is expensive
             if ($units <= 60) {
                 $energy_charge = $units * 30.00; 
                 $fixed_charge = 400.00;
                 $rate_info = "Residential Block 1 (0-60 Units)";
             } else {
-                // First 60 @ 30, Remaining @ 60
                 $first_block = 60 * 30.00;
                 $remaining = $units - 60;
                 $energy_charge = $first_block + ($remaining * 60.00);
@@ -34,26 +32,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         } 
         elseif ($customer_type == 'Business') {
-            // Business: Higher flat rate, no subsidy
             $energy_charge = $units * 75.00;
             $fixed_charge = 2000.00;
             $rate_info = "Business Flat Rate (Commercial)";
         } 
         elseif ($customer_type == 'Government') {
-            // Government: Moderate flat rate
             $energy_charge = $units * 55.00;
             $fixed_charge = 1500.00;
             $rate_info = "Government General Purpose";
         }
     } 
 
-    // 2. WATER LOGIC
     elseif ($utility_type == 'Water') {
         if ($customer_type == 'Residential') {
             $energy_charge = $units * 50.00;
             $fixed_charge = 300.00;
         } elseif ($customer_type == 'Business') {
-            $energy_charge = $units * 110.00; // Water is expensive for business
+            $energy_charge = $units * 110.00; 
             $fixed_charge = 2500.00;
         } else {
             $energy_charge = $units * 60.00;
@@ -61,10 +56,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // 3. GAS LOGIC
     elseif ($utility_type == 'Gas') {
-        // Gas is strictly usage based (m3), rarely differs by customer type significantly, 
-        // but we add a small variation for completeness.
+       
         $base_rate = 350.00;
         if ($customer_type == 'Business') $base_rate = 450.00;
         
@@ -74,7 +67,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $total_bill = $energy_charge + $fixed_charge;
     
-    // Result HTML
     $calculation_result = "
     <div class='bill-summary'>
         <h3>Bill Estimate ($customer_type)</h3>

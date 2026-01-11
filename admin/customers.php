@@ -2,61 +2,68 @@
 session_start();
 require '../includes/db.php';
 
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'Admin') {
-    header("Location: ../login.php");
-    exit();
-}
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'Admin') { header("Location: ../login.php"); exit(); }
+$currentPage = 'customers';
 
 $msg = "";
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_customer'])) {
-    
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_customer'])) {
+    $name = $_POST['name'];
     $nic = $_POST['nic'];
-    $name = $_POST['fullname'];
+    $phone = $_POST['phone'];
     $address = $_POST['address'];
     $city = $_POST['city'];
-    $phone = $_POST['phone'];
-    $type = $_POST['type'];
-    
-    // 1. GENERATE RANDOM PASSWORD
-    $randomPass = rand(100000, 999999); 
-    $passHash = md5($randomPass);
+    $custType = $_POST['cust_type']; 
+    $username = $_POST['username'];
+    $password = md5($_POST['password']); 
 
-    // 2. Insert User (Login)
-    $userSql = "INSERT INTO Users (Username, PasswordHash, FullName, UserRole) VALUES (?, ?, ?, 'Customer')";
-    if (sqlsrv_query($conn, $userSql, array($nic, $passHash, $name))) {
+    $sqlUser = "INSERT INTO Users (Username, PasswordHash, FullName, UserRole) VALUES (?, ?, ?, 'Customer')";
+    $userStmt = sqlsrv_query($conn, $sqlUser, array($username, $password, $name));
+
+    if ($userStmt) {
+        $uidRes = sqlsrv_query($conn, "SELECT @@IDENTITY as ID");
+        $uid = sqlsrv_fetch_array($uidRes)['ID'];
+
+        $sqlCust = "INSERT INTO Customers (UserID, NIC, Phone, Address, City, CustomerType) VALUES (?, ?, ?, ?, ?, ?)";
+        $custStmt = sqlsrv_query($conn, $sqlCust, array($uid, $nic, $phone, $address, $city, $custType));
         
-        $uidStmt = sqlsrv_query($conn, "SELECT @@IDENTITY AS NewID");
-        $newUserID = sqlsrv_fetch_array($uidStmt)['NewID'];
+        if ($custStmt) {
+            $cidRes = sqlsrv_query($conn, "SELECT @@IDENTITY as ID");
+            $cid = sqlsrv_fetch_array($cidRes)['ID'];
 
-        // 3. Insert Customer Profile
-        $custSql = "INSERT INTO Customers (UserID, NIC, Address, City, Phone, CustomerType) VALUES (?, ?, ?, ?, ?, ?)";
-        sqlsrv_query($conn, $custSql, array($newUserID, $nic, $address, $city, $phone, $type));
-        
-        $cidStmt = sqlsrv_query($conn, "SELECT @@IDENTITY AS NewCustID");
-        $newCustID = sqlsrv_fetch_array($cidStmt)['NewCustID'];
+            $serialElec = "ELE-" . rand(10000,99999);
+            sqlsrv_query($conn, "INSERT INTO Meters (CustomerID, MeterType, SerialNumber) VALUES (?, 'Electricity', ?)", array($cid, $serialElec));
 
-        // 4. Install 3 Meters
-        sqlsrv_query($conn, "INSERT INTO Meters (CustomerID, MeterType, SerialNumber) VALUES (?, 'Electricity', ?)", array($newCustID, 'ELE-'.rand(1000,9999)));
-        sqlsrv_query($conn, "INSERT INTO Meters (CustomerID, MeterType, SerialNumber) VALUES (?, 'Water', ?)", array($newCustID, 'WTR-'.rand(1000,9999)));
-        sqlsrv_query($conn, "INSERT INTO Meters (CustomerID, MeterType, SerialNumber) VALUES (?, 'Gas', ?)", array($newCustID, 'GAS-'.rand(1000,9999)));
+            $serialWater = "WAT-" . rand(10000,99999);
+            sqlsrv_query($conn, "INSERT INTO Meters (CustomerID, MeterType, SerialNumber) VALUES (?, 'Water', ?)", array($cid, $serialWater));
 
-        // 5. SHOW CREDENTIALS
-        $msg = "<div class='alert success'>
-                    ✅ <strong>Customer Registered Successfully!</strong><br>
-                    Please give them these login details:<br>
-                    Username: <strong>$nic</strong><br>
-                    Password: <strong>$randomPass</strong>
-                </div>";
+            $serialGas = "GAS-" . rand(10000,99999);
+            sqlsrv_query($conn, "INSERT INTO Meters (CustomerID, MeterType, SerialNumber) VALUES (?, 'Gas', ?)", array($cid, $serialGas));
+
+            $msg = "<div class='alert success'>✅ Customer Added with Electricity, Water, and Gas meters!</div>";
+        } else {
+            $errors = sqlsrv_errors();
+            $msg = "<div class='alert error'>❌ Failed to create Customer profile: " . $errors[0]['message'] . "</div>";
+        }
     } else {
-        $msg = "<div class='alert error'>❌ Error: NIC likely already registered.</div>";
+        $errors = sqlsrv_errors();
+        $msg = "<div class='alert error'>❌ Failed to create User login: " . $errors[0]['message'] . "</div>";
     }
 }
 
-// Fetch List
-$listSql = "SELECT c.CustomerID, c.NIC, c.City, c.CustomerType, u.FullName 
-            FROM Customers c JOIN Users u ON c.UserID = u.UserID ORDER BY c.CustomerID DESC";
-$listStmt = sqlsrv_query($conn, $listSql);
+// --- DELETE LOGIC ---
+if (isset($_GET['del'])) {
+    $id = intval($_GET['del']);
+    sqlsrv_query($conn, "DELETE FROM Meters WHERE CustomerID = ?", array($id));
+    sqlsrv_query($conn, "DELETE FROM Customers WHERE CustomerID = ?", array($id));
+    $msg = "<div class='alert success'>🗑️ Customer Deleted.</div>";
+}
+
+$sql = "SELECT c.CustomerID, u.FullName, c.NIC, c.City, c.CustomerType 
+        FROM Customers c 
+        JOIN Users u ON c.UserID = u.UserID 
+        ORDER BY c.CustomerID DESC";
+$stmt = sqlsrv_query($conn, $sql);
 ?>
 
 <!DOCTYPE html>
@@ -65,60 +72,60 @@ $listStmt = sqlsrv_query($conn, $listSql);
     <meta charset="UTF-8">
     <title>Manage Customers</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <style>
-        .alert { padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background: #f8d7da; color: #721c24; }
-    </style>
 </head>
 <body>
 <div class="dashboard-container">
-    <div class="sidebar">
-        <h3>UtilityOne SL</h3>
-        <a href="dashboard.php">📊 Dashboard</a>
-        <a href="billing.php">💳 Billing Center</a>
-        <a href="customers.php" class="active">👥 Manage Customers</a>
-        <a href="staff.php">👷 Manage Staff</a>
-        <a href="../staff/readings.php">📝 Generate Bill</a>
-        <a href="../logout.php">🚪 Logout</a>
-    </div>
-
+    <?php include 'sidebar.php'; ?>
     <div class="main-content">
-        <h1>Register New Customer</h1>
+        <div class="top-header">
+            <h2>👥 Manage Customers</h2>
+        </div>
         <?php echo $msg; ?>
 
-        <div class="stat-card">
-            <form method="POST" action="">
-                <input type="hidden" name="add_customer" value="1">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <input type="text" name="fullname" required placeholder="Full Name">
-                    <input type="text" name="nic" required placeholder="NIC Number (This will be Username)">
-                    <input type="text" name="phone" required placeholder="Phone Number">
-                    <select name="type">
-                        <option value="Residential">Residential</option>
-                        <option value="Business">Business</option>
-                        <option value="Government">Government</option>
-                    </select>
-                </div>
-                <input type="text" name="address" required placeholder="Address" style="width: 96%; margin-top: 10px;">
-                <input type="text" name="city" required placeholder="City" style="width: 96%; margin-top: 10px;">
-                <button type="submit" class="btn-main" style="margin-top: 20px;">Register User</button>
+        <div class="content-box">
+            <h3 style="margin-top:0;">+ Add New Customer</h3>
+            <form method="POST" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                <input type="text" name="name" placeholder="Full Name" required>
+                <input type="text" name="nic" placeholder="NIC Number" required>
+                <input type="text" name="phone" placeholder="Phone Number" required>
+                <input type="text" name="address" placeholder="Address" required>
+                <input type="text" name="city" placeholder="City" required>
+
+                <select name="cust_type" required>
+                    <option value="">-- Select Type --</option>
+                    <option value="Domestic">Domestic (Household)</option>
+                    <option value="Commercial">Commercial (Business)</option>
+                </select>
+
+                <input type="text" name="username" placeholder="Create Username" required>
+                <input type="password" name="password" placeholder="Create Password" required>
+                
+                <button type="submit" name="add_customer" class="btn-main" style="grid-column: span 2;">Create Customer & Assign 3 Meters</button>
             </form>
         </div>
 
-        <h3 style="margin-top: 30px;">Customer Database</h3>
-        <div style="background: white; padding: 20px; border-radius: 10px;">
-            <table style="width:100%; text-align:left;">
-                <thead><tr><th>Name</th><th>NIC</th><th>City</th><th>Type</th></tr></thead>
+        <div class="table-container" style="margin-top:20px;">
+            <table>
+                <thead>
+                    <tr><th>ID</th><th>Name</th><th>NIC</th><th>City</th><th>Type</th><th>Action</th></tr>
+                </thead>
                 <tbody>
-                    <?php while($row = sqlsrv_fetch_array($listStmt, SQLSRV_FETCH_ASSOC)): ?>
-                    <tr>
-                        <td><?php echo $row['FullName']; ?></td>
-                        <td><?php echo $row['NIC']; ?></td>
-                        <td><?php echo $row['City']; ?></td>
-                        <td><?php echo $row['CustomerType']; ?></td>
-                    </tr>
-                    <?php endwhile; ?>
+                    <?php if ($stmt && sqlsrv_has_rows($stmt)): ?>
+                        <?php while($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)): ?>
+                        <tr>
+                            <td>#<?php echo $row['CustomerID']; ?></td>
+                            <td><strong><?php echo $row['FullName']; ?></strong></td>
+                            <td><?php echo $row['NIC']; ?></td>
+                            <td><?php echo $row['City']; ?></td>
+                            <td><span class="status-badge"><?php echo $row['CustomerType']; ?></span></td>
+                            <td>
+                                <a href="customers.php?del=<?php echo $row['CustomerID']; ?>" style="color:red;" onclick="return confirm('Are you sure?');">Delete</a>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr><td colspan="6" style="text-align:center;">No customers found.</td></tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>

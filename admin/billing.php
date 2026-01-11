@@ -3,54 +3,43 @@ session_start();
 require '../includes/db.php';
 require '../includes/functions.php';
 
-if (!isset($_SESSION['role']) || ($_SESSION['role'] !== 'Admin' && $_SESSION['role'] !== 'MeterReader')) {
-    header("Location: ../login.php");
-    exit();
+if (!isset($_SESSION['role']) || ($_SESSION['role'] !== 'Admin' && $_SESSION['role'] !== 'Cashier' && $_SESSION['role'] !== 'Manager')) { 
+    header("Location: ../login.php"); exit(); 
 }
-
+$currentPage = 'billing';
 $msg = "";
 
-// --- DELETE FUNCTIONALITY (Undo Mistake) ---
-if (isset($_GET['delete_id']) && $_SESSION['role'] == 'Admin') {
-    $delID = intval($_GET['delete_id']);
-    
-    // 1. Get ReadingID linked to this Bill
-    $getReadSql = "SELECT ReadingID FROM Bills WHERE BillID = ?";
-    $stmtR = sqlsrv_query($conn, $getReadSql, array($delID));
-    $readingID = sqlsrv_fetch_array($stmtR)['ReadingID'];
-
-    // 2. Delete Payments -> Bill -> Reading
-    sqlsrv_query($conn, "DELETE FROM Payments WHERE BillID = ?", array($delID));
-    sqlsrv_query($conn, "DELETE FROM Bills WHERE BillID = ?", array($delID));
-    sqlsrv_query($conn, "DELETE FROM Readings WHERE ReadingID = ?", array($readingID));
-
-    $msg = "<div class='alert error'>🗑️ Bill & Reading Deleted Successfully.</div>";
-}
-
-// Payment & Email Actions (Same as before)
-if (isset($_GET['pay_id'])) {
+if (isset($_GET['pay_id']) && isset($_GET['amt'])) {
     $billID = intval($_GET['pay_id']);
-    sqlsrv_query($conn, "UPDATE Bills SET Status = 'Paid' WHERE BillID = ?", array($billID));
-    $msg = "<div class='alert success'>✅ Bill Marked as Paid.</div>";
-}
-if (isset($_GET['email_id'])) {
-    sqlsrv_query($conn, "UPDATE Bills SET IsEmailSent = 1 WHERE BillID = ?", array(intval($_GET['email_id'])));
-    $msg = "<div class='alert success'>📧 Email Sent.</div>";
+    $amount = floatval($_GET['amt']);
+    $userID = $_SESSION['user_id'];
+    
+    $sqlSP = "{CALL sp_PayBill(?, ?, ?, ?)}";
+    $params = array($billID, $amount, 'Cash', $userID);
+    
+    if(sqlsrv_query($conn, $sqlSP, $params)) {
+        $msg = "<div class='alert success'>✅ Payment Recorded via System!</div>";
+    } else {
+        $msg = "<div class='alert error'>❌ Payment Failed.</div>";
+    }
 }
 
-// Fetch Logic
-$search = "";
-$params = array();
-$whereClause = "";
-if (isset($_GET['search']) && !empty($_GET['search'])) {
+$search = ""; $params = array(); $whereClause = "";
+if (isset($_GET['search'])) {
     $search = $_GET['search'];
     $whereClause = "WHERE (c.NIC LIKE ? OR u.FullName LIKE ?)";
-    $term = "%$search%";
-    $params = array($term, $term);
+    $params = array("%$search%", "%$search%");
 }
 
-$sql = "SELECT TOP 50 b.BillID, b.Amount, b.Status, b.IsEmailSent, ISNULL(c.NIC, 'Unknown') as NIC, ISNULL(u.FullName, 'Unknown') as FullName, ISNULL(m.MeterType, 'Unknown') as MeterType 
-        FROM Bills b LEFT JOIN Meters m ON b.MeterID = m.MeterID LEFT JOIN Customers c ON m.CustomerID = c.CustomerID LEFT JOIN Users u ON c.UserID = u.UserID 
+$sql = "SELECT TOP 50 b.BillID, b.Amount, b.Status, b.BillMonth,
+        ISNULL(c.NIC, 'Unknown') as NIC, 
+        ISNULL(u.FullName, 'Unknown') as FullName, 
+        ISNULL(m.MeterType, 'Unknown') as MeterType 
+        FROM Bills b 
+        LEFT JOIN Readings r ON b.ReadingID = r.ReadingID
+        LEFT JOIN Meters m ON r.MeterID = m.MeterID 
+        LEFT JOIN Customers c ON m.CustomerID = c.CustomerID 
+        LEFT JOIN Users u ON c.UserID = u.UserID 
         $whereClause ORDER BY b.BillID DESC";
 $stmt = sqlsrv_query($conn, $sql, $params);
 ?>
@@ -61,57 +50,41 @@ $stmt = sqlsrv_query($conn, $sql, $params);
     <meta charset="UTF-8">
     <title>Billing Center</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <style>
-        .action-btn { padding: 4px 8px; border-radius: 4px; color: white; text-decoration: none; font-size: 0.8rem; display:inline-block; margin-right:3px; }
-        .btn-pay { background: #28a745; }
-        .btn-email { background: #17a2b8; }
-        .btn-del { background: #dc3545; } /* Red Delete Button */
-        .alert { padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
-    </style>
 </head>
 <body>
 <div class="dashboard-container">
-    <div class="sidebar">
-        <h3>UtilityOne SL</h3>
-        <a href="dashboard.php">📊 Dashboard</a>
-        <a href="billing.php" class="active">💳 Billing & Payments</a>
-        <a href="customers.php">👥 Manage Customers</a>
-        <a href="staff.php">👷 Manage Staff</a>
-        <a href="../staff/readings.php">📝 Generate New Bill</a>
-        <a href="../logout.php">🚪 Logout</a>
-    </div>
-
+    <?php include 'sidebar.php'; ?>
     <div class="main-content">
-        <h1>💳 Billing Control Center</h1>
+        <h2 style="color: white; margin-bottom: 20px;">💳 Billing Center</h2>
         <?php echo $msg; ?>
-        
-        <div class="stat-card" style="padding:15px; margin-bottom:20px;">
-            <form method="GET" style="display:flex; gap:10px;">
-                <input type="text" name="search" placeholder="Search..." value="<?php echo htmlspecialchars($search); ?>" style="flex:1; padding:10px;">
+
+        <div class="content-box">
+            <form method="GET" style="display:flex; gap:10px; margin-bottom: 20px;">
+                <input type="text" name="search" placeholder="Search..." value="<?php echo htmlspecialchars($search); ?>" style="flex:1; margin-bottom:0;">
                 <button type="submit" class="btn-main" style="width:auto;">Search</button>
             </form>
-        </div>
 
-        <div class="table-container" style="background: white; padding: 20px; border-radius: 10px;">
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead><tr style="background: #f8f9fa;"><th style="padding:10px;">ID</th><th style="padding:10px;">Details</th><th style="padding:10px;">Amount</th><th style="padding:10px;">Actions</th></tr></thead>
+            <table>
+                <thead>
+                    <tr><th>ID</th><th>Customer</th><th>Month</th><th>Amount</th><th>Status</th><th>Action</th></tr>
+                </thead>
                 <tbody>
-                    <?php if ($stmt): while($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)): ?>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding:12px;">#<?php echo $row['BillID']; ?></td>
-                        <td style="padding:12px;"><strong><?php echo $row['FullName']; ?></strong><br><small><?php echo $row['MeterType']; ?></small></td>
-                        <td style="padding:12px; font-weight:bold;"><?php echo formatCurrency($row['Amount']); ?></td>
-                        <td style="padding:12px;">
-                            <a href="billing.php?email_id=<?php echo $row['BillID']; ?>" class="action-btn btn-email">✉️</a>
-                            <?php if($row['Status'] == 'Unpaid'): ?>
-                                <a href="billing.php?pay_id=<?php echo $row['BillID']; ?>" class="action-btn btn-pay">💵</a>
-                            <?php endif; ?>
-                            <a href="billing.php?delete_id=<?php echo $row['BillID']; ?>" class="action-btn btn-del" onclick="return confirm('⚠️ Are you sure? This will DELETE the reading and bill permanently.');">🗑️</a>
-                        </td>
-                    </tr>
-                    <?php endwhile; endif; ?>
+                    <?php if ($stmt && sqlsrv_has_rows($stmt)): ?>
+                        <?php while($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)): ?>
+                        <tr>
+                            <td>#<?php echo $row['BillID']; ?></td>
+                            <td><strong><?php echo $row['FullName']; ?></strong><br><small><?php echo $row['MeterType']; ?></small></td>
+                            <td><?php echo $row['BillMonth']; ?></td>
+                            <td>LKR <?php echo number_format($row['Amount'], 2); ?></td>
+                            <td><?php echo ($row['Status'] == 'Paid') ? "<span style='color:green'>Paid</span>" : "<span style='color:red'>Unpaid</span>"; ?></td>
+                            <td>
+                                <?php if($row['Status'] == 'Unpaid'): ?>
+                                    <a href="billing.php?pay_id=<?php echo $row['BillID']; ?>&amt=<?php echo $row['Amount']; ?>" style="color:green; font-weight:bold;">Pay Full</a>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>

@@ -2,7 +2,6 @@
 session_start();
 require '../includes/db.php';
 
-// Security: Admin Only
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'Admin') {
     header("Location: ../login.php");
     exit();
@@ -10,26 +9,24 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'Admin') {
 
 $msg = "";
 
-// HANDLE ADD STAFF
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $name = $_POST['fullname'];
     $username = $_POST['username'];
     $password = $_POST['password'];
-    $role = 'MeterReader'; // Hardcoded role
+    $role = 'MeterReader'; 
 
-    $passHash = md5($password); // Simple MD5 for this project
+    $passHash = md5($password); 
 
     $sql = "INSERT INTO Users (Username, PasswordHash, FullName, UserRole) VALUES (?, ?, ?, ?)";
     $params = array($username, $passHash, $name, $role);
 
     if (sqlsrv_query($conn, $sql, $params)) {
-        $msg = "<div class='alert success'>✅ Staff Member Created! <br>Username: <strong>$username</strong><br>Password: <strong>$password</strong></div>";
+        $msg = "<div class='alert success'> Staff Member Created! <br>Username: <strong>$username</strong><br>Password: <strong>$password</strong></div>";
     } else {
-        $msg = "<div class='alert error'>❌ Error: Username likely taken.</div>";
+        $msg = "<div class='alert error'> Error: Username likely taken.</div>";
     }
 }
 
-// FETCH STAFF LIST
 $staffSql = "SELECT UserID, FullName, Username, CreatedAt FROM Users WHERE UserRole = 'MeterReader' ORDER BY UserID DESC";
 $staffStmt = sqlsrv_query($conn, $staffSql);
 ?>
@@ -51,16 +48,16 @@ $staffStmt = sqlsrv_query($conn, $staffSql);
 <div class="dashboard-container">
     <div class="sidebar">
         <h3>UtilityOne SL</h3>
-        <a href="dashboard.php">📊 Dashboard</a>
-        <a href="billing.php">💳 Billing Center</a>
-        <a href="customers.php">👥 Manage Customers</a>
-        <a href="staff.php" class="active">👷 Manage Staff</a>
-        <a href="../staff/readings.php">📝 Generate Bill</a>
-        <a href="../logout.php">🚪 Logout</a>
+        <a href="dashboard.php"> Dashboard</a>
+        <a href="billing.php"> Billing Center</a>
+        <a href="customers.php"> Manage Customers</a>
+        <a href="staff.php" class="active"> Manage Staff</a>
+        <a href="../staff/readings.php"> Generate Bill</a>
+        <a href="../logout.php"> Logout</a>
     </div>
 
     <div class="main-content">
-        <h1>👷 Manage Meter Readers</h1>
+        <h1> Manage Meter Readers</h1>
         <?php echo $msg; ?>
 
         <div class="stat-card" style="max-width: 500px;">

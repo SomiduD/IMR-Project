@@ -12,7 +12,6 @@ $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'All';
 
-// BUILD QUERY
 $sql = "SELECT b.BillID, b.BillMonth, b.Amount, b.Status, b.GeneratedDate, 
                c.NIC, u.FullName, m.MeterType 
         FROM Bills b
@@ -26,7 +25,6 @@ $sql = "SELECT b.BillID, b.BillMonth, b.Amount, b.Status, b.GeneratedDate,
 $params = array($start_date . " 00:00:00", $end_date . " 23:59:59");
 $stmt = sqlsrv_query($conn, $sql, $params);
 
-// Calculate Totals
 $totalRevenue = 0;
 $count = 0;
 ?>
@@ -55,17 +53,17 @@ $count = 0;
 <div class="dashboard-container">
     <div class="sidebar">
         <h3>UtilityOne SL</h3>
-        <a href="dashboard.php">📊 Dashboard</a>
-        <a href="billing.php">💳 Billing Center</a>
-        <a href="customers.php">👥 Manage Customers</a>
-        <a href="reports.php" class="active">📑 Reports</a>
-        <a href="staff.php">👷 Manage Staff</a>
-        <a href="../staff/readings.php">📝 Generate Bill</a>
-        <a href="../logout.php">🚪 Logout</a>
+        <a href="dashboard.php"> Dashboard</a>
+        <a href="billing.php"> Billing Center</a>
+        <a href="customers.php"> Manage Customers</a>
+        <a href="reports.php" class="active"> Reports</a>
+        <a href="staff.php"> Manage Staff</a>
+        <a href="../staff/readings.php"> Generate Bill</a>
+        <a href="../logout.php"> Logout</a>
     </div>
 
     <div class="main-content">
-        <h1>📑 Financial & Usage Reports</h1>
+        <h1> Financial & Usage Reports</h1>
         
         <div class="report-header">
             <form method="GET" class="filter-form">
