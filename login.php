@@ -101,7 +101,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <body>
 
 <div class="login-card">
-    <span class="logo">UtilityOne SL 🇱🇰</span>
+    <span class="logo">UtilityOne SL</span>
     <h3 style="color: #666; font-weight: normal; margin-bottom: 30px;">Sign in to your account</h3>
     
     <?php if($error): ?>
